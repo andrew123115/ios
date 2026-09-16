@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="h-full bg-slate-100 selection:bg-indigo-500 selection:text-white">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>iOS 風格多功能行事曆 - 學業與工作獨立統整</title>
+  
+  <!-- SVG Favicon -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='16' fill='%234f46e5'/><rect x='8' y='8' width='48' height='48' rx='8' fill='white'/><rect x='8' y='8' width='48' height='12' rx='6' fill='%233730a3'/><text x='32' y='18' font-family='system-ui, sans-serif' font-weight='bold' font-size='9' fill='white' text-anchor='middle'>CALENDAR</text><path d='M10 20 H54 V50 A4 4 0 0 1 50 54 H14 A4 4 0 0 1 10 50 Z' fill='%23f8fafc'/><line x1='24' y1='20' x2='24' y2='54' stroke='%23e2e8f0' stroke-width='1.5'/><line x1='40' y1='20' x2='40' y2='54' stroke='%23e2e8f0' stroke-width='1.5'/><line x1='10' y1='31' x2='54' y2='31' stroke='%23e2e8f0' stroke-width='1.5'/><line x1='10' y1='42' x2='54' y2='42' stroke='%23e2e8f0' stroke-width='1.5'/><circle cx='17' cy='26' r='2' fill='%23ef4444'/><line x1='21' y1='26' x2='35' y2='26' stroke='%23334155' stroke-width='2' stroke-linecap='round'/><circle cx='17' cy='36' r='2' fill='%233b82f6'/><line x1='21' y1='36' x2='37' y2='36' stroke='%23334155' stroke-width='2' stroke-linecap='round'/><circle cx='17' cy='47' r='2' fill='%2310b981'/><line x1='21' y1='47' x2='32' y2='47' stroke='%23334155' stroke-width='2' stroke-linecap='round'/></svg>">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Text"', '"SF Pro Display"', '"Helvetica Neue"', 'Helvetica', 'Arial', 'sans-serif'],
+          },
+          colors: {
+            ios: {
+              blue: '#007AFF',
+              purple: '#5856D6',
+              pink: '#FF2D55',
+              orange: '#FF9500',
+              green: '#34C759',
+              red: '#FF3B30',
+              gray: '#8E8E93',
+              bg: '#F2F2F7',
+              card: '#FFFFFF',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* iOS 安全區域補償 */
+    .pb-safe {
+      padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    }
+    .mb-safe {
+      margin-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    
+    /* 隱藏滾動條但保持滾動 */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+
+    /* iOS 動態觸控體驗 */
+    .ios-press-active:active {
+      transform: scale(0.97);
+      opacity: 0.85;
+      transition: transform 0.1s ease, opacity 0.1s ease;
+    }
+
+    @media print {
+      .no-print {
+        display: none !important;
+      }
+      .print-area {
+        box-shadow: none !important;
+        border: 1px solid #ccc !important;
+      }
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col text-slate-900 bg-[#F2F2F7] antialiased overflow-x-hidden select-none">
+
+  <!-- 頂部 iOS 導覽列 Header -->
+  <header class="bg-white/80 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-30 no-print transition-all">
+    <div class="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between gap-2">
+      
+      <!-- 標題與月份切換 -->
+      <div class="flex items-center space-x-2">
+        <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-500 flex items-center justify-center text-white shadow-xs shrink-0">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+          </svg>
+        </div>
+        
+        <!-- 當前月份標題點擊回到今天 -->
+        <button id="current-month-display-btn" class="flex items-center gap-1.5 text-left group">
+          <span id="current-month-display" class="text-base sm:text-lg font-bold tracking-tight text-slate-900 group-hover:text-indigo-600 transition-colors">
+            2026 年 9 月
+          </span>
+          <span class="text-[10px] font-semibold px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-full border border-indigo-100 hidden sm:inline-block">iOS 獨立版</span>
+        </button>
+      </div>
+
+      <!-- 中間 iOS 視圖分段控制器 (Segmented Control) -->
+      <div class="hidden sm:flex items-center bg-slate-200/60 p-1 rounded-xl text-xs font-semibold">
+        <button id="view-month-btn" class="px-3 py-1.5 rounded-lg bg-white text-indigo-600 shadow-xs transition-all font-bold">
+          📅 月檢視
+        </button>
+        <button id="view-week-btn" class="px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition-all">
+          📋 本週待辦
+        </button>
+        <button id="view-summary-btn" class="px-3 py-1.5 rounded-lg text-slate-600 hover:text-indigo-600 transition-all">
+          📊 標籤獨立統整
+        </button>
+      </div>
+
+      <!-- 右側控制區 (月份切換與選單) -->
+      <div class="flex items-center space-x-1.5">
+        
+        <button id="today-btn" class="px-2.5 py-1 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors border border-indigo-100/60">
+          今天
+        </button>
+
+        <div class="flex items-center bg-slate-100 rounded-lg p-0.5">
+          <button id="prev-month-btn" class="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-white rounded-md transition-all" title="上一頁">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"></path></svg>
+          </button>
+          <button id="next-month-btn" class="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-white rounded-md transition-all" title="下一頁">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"></path></svg>
+          </button>
+        </div>
+
+        <!-- 備份選單 -->
+        <div class="relative inline-block text-left">
+          <button id="menu-btn" class="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-200/50 rounded-lg transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path></svg>
+          </button>
+          <div id="menu-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white/95 backdrop-blur-xl rounded-2xl shadow-xl border border-slate-100 py-1 z-50">
+            <button id="export-btn" class="w-full text-left px-4 py-2.5 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2">
+              <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+              匯出行事曆資料 (JSON)
+            </button>
+            <label class="w-full text-left px-4 py-2.5 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2 cursor-pointer">
+              <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+              匯入備份資料
+              <input type="file" id="import-file" accept=".json" class="hidden">
+            </label>
+            <hr class="my-1 border-slate-100">
+            <button id="print-btn" class="w-full text-left px-4 py-2.5 text-xs text-slate-700 hover:bg-indigo-50 hover:text-indigo-600 flex items-center gap-2">
+              <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
+              列印 / 另存 PDF
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- 搜尋與分類標籤區 -->
+  <section class="max-w-4xl mx-auto px-4 pt-3 pb-1 w-full no-print">
+    <div class="flex flex-col gap-2.5">
+      <!-- iOS 搜尋框 -->
+      <div class="relative w-full">
+        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+        </div>
+        <input type="text" id="search-input" placeholder="搜尋作業、會議、行程與備註..." class="w-full pl-9 pr-8 py-2 bg-slate-200/70 focus:bg-white border border-transparent focus:border-indigo-300 rounded-xl text-xs sm:text-sm focus:outline-none transition-all placeholder:text-slate-400">
+        <button id="clear-search-btn" class="hidden absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+        </button>
+      </div>
+
+      <!-- iOS 滑動分類膠囊按鈕 (Category Filter Chips) -->
+      <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 text-xs font-semibold" id="category-filters">
+        <button data-category="all" class="filter-chip active px-3 py-1.5 rounded-full bg-slate-900 text-white shadow-xs transition-all flex items-center gap-1 whitespace-nowrap shrink-0">
+          全部
+        </button>
+        <button data-category="academic" class="filter-chip px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-700 hover:bg-purple-50 hover:text-purple-700 transition-all flex items-center gap-1 whitespace-nowrap shrink-0">
+          <span class="w-2 h-2 rounded-full bg-purple-500"></span>
+          🎓 學業
+        </button>
+        <button data-category="work" class="filter-chip px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-all flex items-center gap-1 whitespace-nowrap shrink-0">
+          <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+          💼 工作
+        </button>
+        <button data-category="personal" class="filter-chip px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-700 hover:bg-emerald-50 hover:text-emerald-700 transition-all flex items-center gap-1 whitespace-nowrap shrink-0">
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          🟢 個人
+        </button>
+        <button data-category="important" class="filter-chip px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-700 hover:bg-rose-50 hover:text-rose-700 transition-all flex items-center gap-1 whitespace-nowrap shrink-0">
+          <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+          🔴 重要
+        </button>
+        <button data-category="health" class="filter-chip px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-700 hover:bg-amber-50 hover:text-amber-700 transition-all flex items-center gap-1 whitespace-nowrap shrink-0">
+          <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+          🟠 健康
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 主要行事曆內容區域 -->
+  <main class="flex-1 max-w-4xl w-full mx-auto px-4 py-2 pb-24 sm:pb-8 flex flex-col min-h-0">
+    
+    <!-- 1. 月檢視 (iOS 緊湊網格 + 當日行程面板) -->
+    <div id="month-view-container" class="flex flex-col gap-3 flex-1 print-area">
+      
+      <!-- 月曆卡片區塊 -->
+      <div class="bg-white rounded-3xl p-3 shadow-xs border border-slate-200/80">
+        <!-- 星期表頭 -->
+        <div class="grid grid-cols-7 text-center font-semibold text-slate-400 text-xs py-2 border-b border-slate-100">
+          <div class="text-rose-500">日</div>
+          <div>一</div>
+          <div>二</div>
+          <div>三</div>
+          <div>四</div>
+          <div>五</div>
+          <div class="text-indigo-600">六</div>
+        </div>
+
+        <!-- 月曆日期網格 (使用緊湊型 iOS 設計，徹底防破圖) -->
+        <div id="calendar-grid" class="grid grid-cols-7 gap-y-1 gap-x-1 pt-2">
+          <!-- JS 動態生成 -->
+        </div>
+      </div>
+
+      <!-- 當日行程速覽面板 (iOS Agenda View Sheet) -->
+      <div class="bg-white rounded-3xl p-4 shadow-xs border border-slate-200/80 flex-1 flex flex-col">
+        <div class="flex items-center justify-between mb-3 border-b border-slate-100 pb-2.5">
+          <div class="flex items-center gap-2">
+            <span id="selected-date-badge" class="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-full">2026-09-16</span>
+            <span id="selected-day-name" class="text-xs font-semibold text-slate-500">當日行程</span>
+          </div>
+          <button id="add-selected-day-task-btn" class="ios-press-active text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-full transition-colors flex items-center gap-1">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
+            新增事項
+          </button>
+        </div>
+
+        <!-- 當日清單 -->
+        <div id="selected-day-task-list" class="space-y-2.5 overflow-y-auto max-h-[360px] pr-1">
+          <!-- JS 動態生成 -->
+        </div>
+      </div>
+
+    </div>
+
+    <!-- 2. 本週待辦事項總覽 -->
+    <div id="weekly-view-container" class="hidden bg-white rounded-3xl border border-slate-200/80 shadow-xs p-4 sm:p-6 flex-1 flex flex-col gap-4 print-area">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+        <div>
+          <h2 class="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+            <span>📋 本週待辦事項總覽</span>
+          </h2>
+          <span id="weekly-date-range" class="text-xs font-medium text-indigo-600 mt-0.5 inline-block"></span>
+        </div>
+        <div class="flex items-center gap-2 self-end sm:self-auto">
+          <button id="expand-all-week-btn" class="px-2.5 py-1 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg">全部展開</button>
+          <button id="collapse-all-week-btn" class="px-2.5 py-1 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg">全部折疊</button>
+        </div>
+      </div>
+
+      <div id="weekly-days-list" class="space-y-4 overflow-y-auto">
+        <!-- JS 動態生成本週 7 天 -->
+      </div>
+    </div>
+
+    <!-- 3. 標籤獨立統整專區 (Universal Category Summary View) -->
+    <div id="summary-view-container" class="hidden bg-white rounded-3xl border border-slate-200/80 shadow-xs p-4 sm:p-6 flex-1 flex flex-col gap-5 print-area">
+      
+      <!-- 標籤選擇頁籤 (Category Tabs) -->
+      <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 border-b border-slate-100 text-xs font-bold" id="summary-category-tabs">
+        <button data-cat="academic" class="summary-tab-btn active px-3.5 py-2 rounded-xl bg-purple-600 text-white shadow-xs transition-all whitespace-nowrap">
+          🎓 學業統整
+        </button>
+        <button data-cat="work" class="summary-tab-btn px-3.5 py-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all whitespace-nowrap">
+          💼 工作統整
+        </button>
+        <button data-cat="personal" class="summary-tab-btn px-3.5 py-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all whitespace-nowrap">
+          🟢 個人統整
+        </button>
+        <button data-cat="important" class="summary-tab-btn px-3.5 py-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all whitespace-nowrap">
+          🔴 重要統整
+        </button>
+        <button data-cat="health" class="summary-tab-btn px-3.5 py-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all whitespace-nowrap">
+          🟠 健康統整
+        </button>
+      </div>
+
+      <!-- Category Banner -->
+      <div id="summary-banner" class="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl p-5 text-white shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <div>
+          <div class="flex items-center gap-2">
+            <span id="summary-banner-icon" class="text-xl">🎓</span>
+            <h2 id="summary-banner-title" class="text-base sm:text-lg font-bold">學業專區與進度統整</h2>
+          </div>
+          <p id="summary-banner-desc" class="text-xs text-white/90 mt-1">獨立彙整此標籤項下的所有行程、交件與待辦進度</p>
+        </div>
+        <button id="add-category-task-btn" class="ios-press-active px-3 py-1.5 bg-white text-slate-900 font-bold text-xs rounded-xl shadow-xs hover:bg-slate-100 transition-colors flex items-center gap-1 shrink-0">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
+          <span id="add-category-task-label">新增事項</span>
+        </button>
+      </div>
+
+      <!-- 統計數據 -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <div class="bg-slate-50 border border-slate-200/60 rounded-2xl p-3">
+          <span class="text-[11px] font-semibold text-slate-400">總事項數</span>
+          <p id="summary-stat-total" class="text-xl font-bold text-slate-900 mt-0.5">0</p>
+        </div>
+        <div class="bg-amber-50/70 border border-amber-100 rounded-2xl p-3">
+          <span class="text-[11px] font-semibold text-amber-600">待處理</span>
+          <p id="summary-stat-pending" class="text-xl font-bold text-amber-900 mt-0.5">0</p>
+        </div>
+        <div class="bg-emerald-50/70 border border-emerald-100 rounded-2xl p-3">
+          <span class="text-[11px] font-semibold text-emerald-600">已完成</span>
+          <p id="summary-stat-completed" class="text-xl font-bold text-emerald-900 mt-0.5">0</p>
+        </div>
+        <div class="bg-indigo-50/70 border border-indigo-100 rounded-2xl p-3">
+          <span class="text-[11px] font-semibold text-indigo-600">完成率</span>
+          <p id="summary-stat-rate" class="text-xl font-bold text-indigo-900 mt-0.5">0%</p>
+        </div>
+      </div>
+
+      <!-- 標籤任務列表 -->
+      <div class="space-y-3">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+          <h3 class="text-xs font-bold text-slate-700 flex items-center gap-1">
+            <span>待辦事項詳細清單</span>
+            <span id="summary-count-badge" class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-semibold">0 項</span>
+          </h3>
+          <div class="flex items-center gap-1 text-xs font-semibold">
+            <button data-summary-filter="all" class="summary-filter-btn px-2.5 py-1 rounded-lg bg-slate-900 text-white">全部</button>
+            <button data-summary-filter="pending" class="summary-filter-btn px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600">未完成</button>
+            <button data-summary-filter="completed" class="summary-filter-btn px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600">已完成</button>
+          </div>
+        </div>
+
+        <div id="summary-tasks-list" class="space-y-2.5">
+          <!-- JS 動態生成 -->
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- 手機專用 iOS 底部 Tab 導覽列 (Bottom Navigation Bar) -->
+  <nav class="sm:hidden fixed bottom-0 inset-x-0 bg-white/90 backdrop-blur-xl border-t border-slate-200/80 z-40 px-3 pt-1.5 pb-safe flex items-center justify-around shadow-lg no-print">
+    <button id="mobile-nav-month" class="flex flex-col items-center justify-center text-indigo-600 font-bold text-[10px] w-full ios-press-active">
+      <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+      月檢視
+    </button>
+    <button id="mobile-nav-week" class="flex flex-col items-center justify-center text-slate-400 font-semibold text-[10px] w-full ios-press-active">
+      <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+      本週待辦
+    </button>
+    <button id="mobile-nav-summary" class="flex flex-col items-center justify-center text-slate-400 font-semibold text-[10px] w-full ios-press-active">
+      <svg class="w-5 h-5 mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+      標籤統整
+    </button>
+    <button id="mobile-nav-add" class="flex flex-col items-center justify-center text-slate-400 font-semibold text-[10px] w-full ios-press-active">
+      <div class="w-7 h-7 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold text-base shadow-xs mb-0.5">+</div>
+      新增
+    </button>
+  </nav>
+
+  <!-- iOS 風格 Modal 行程新增/編輯彈窗 (Action Sheet) -->
+  <div id="event-modal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 hidden opacity-0 transition-opacity duration-200">
+    <div class="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl border border-slate-100 max-w-lg w-full overflow-hidden transform translate-y-full sm:translate-y-0 sm:scale-95 transition-all duration-200 flex flex-col max-h-[90vh]">
+      
+      <!-- Modal Header -->
+      <div class="px-5 py-4 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h3 id="modal-date-title" class="text-base font-bold text-slate-900">2026 年 9 月 16 日</h3>
+          <p id="modal-date-subtitle" class="text-xs text-slate-500">新增或修改行程事項</p>
+        </div>
+        <button id="close-modal-btn" class="w-7 h-7 bg-slate-200/60 hover:bg-slate-200 rounded-full flex items-center justify-center text-slate-500 transition-colors">
+          ✕
+        </button>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="p-5 overflow-y-auto space-y-4 flex-1">
+        
+        <!-- 表單 -->
+        <form id="task-form" class="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200/60">
+          <input type="hidden" id="editing-task-id" value="">
+
+          <div>
+            <label for="task-title-input" class="block text-xs font-bold text-slate-600 mb-1">事項標題</label>
+            <input type="text" id="task-title-input" placeholder="例如：團隊簡報會議、微積分作業..." required class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          </div>
+
+          <div>
+            <label for="task-note-input" class="block text-xs font-bold text-slate-600 mb-1">詳細備註 / 說明 (選填)</label>
+            <textarea id="task-note-input" rows="2.5" placeholder="補充地點、報告連結、內容大綱..." class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"></textarea>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2.5">
+            <div>
+              <label for="task-category-select" class="block text-xs font-bold text-slate-600 mb-1">分類標籤</label>
+              <select id="task-category-select" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="academic">🎓 學業</option>
+                <option value="work">💼 工作</option>
+                <option value="personal">🟢 個人</option>
+                <option value="important">🔴 重要</option>
+                <option value="health">🟠 健康</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="task-time-input" class="block text-xs font-bold text-slate-600 mb-1">指定時間 (選填)</label>
+              <input type="time" id="task-time-input" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+            </div>
+          </div>
+
+          <div class="flex justify-end pt-1 gap-2">
+            <button type="button" id="cancel-edit-btn" class="hidden px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-200 rounded-xl">取消編輯</button>
+            <button type="submit" id="submit-task-btn" class="px-4 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors flex items-center gap-1 shadow-xs">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path></svg>
+              <span>新增至清單</span>
+            </button>
+          </div>
+        </form>
+
+        <!-- 當日行程清單 -->
+        <div>
+          <h4 class="text-xs font-bold text-slate-400 mb-2 flex items-center justify-between">
+            <span>當日列點行程</span>
+            <span id="task-count-badge" class="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-semibold">0 項</span>
+          </h4>
+
+          <ul id="modal-task-list" class="space-y-2">
+            <!-- JS 動態生成 -->
+          </ul>
+        </div>
+
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex justify-end pb-safe">
+        <button id="close-modal-bottom-btn" class="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-200/60 rounded-xl transition-colors">
+          完成 / 關閉
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Toast 訊息提示元件 -->
+  <div id="toast-container" class="fixed bottom-16 sm:bottom-6 right-4 left-4 sm:left-auto z-50 flex flex-col gap-2 pointer-events-none items-center sm:items-end"></div>
+
+  <!-- 確認刪除 Dialog -->
+  <div id="confirm-dialog" class="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-white rounded-3xl p-5 max-w-xs w-full shadow-2xl border border-slate-100 space-y-3 text-center">
+      <h3 class="text-base font-bold text-slate-900">確認刪除此事項？</h3>
+      <p id="confirm-dialog-msg" class="text-xs text-slate-500">刪除後無法復原，確定要繼續嗎？</p>
+      <div class="flex justify-center gap-2 pt-2">
+        <button id="confirm-cancel-btn" class="w-full py-2 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl">取消</button>
+        <button id="confirm-ok-btn" class="w-full py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl">確認刪除</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ==========================================================================
+       1. 分類設定與資料狀態 (Categories & State)
+       ========================================================================== */
+    const CATEGORIES = {
+      academic: { name: '學業', bg: 'bg-purple-500', text: 'text-purple-700', border: 'border-purple-200', lightBg: 'bg-purple-50', gradient: 'from-purple-600 to-indigo-600', btnBg: 'bg-purple-600', icon: '🎓', desc: '獨立彙整課程作業、考試日程、報告進度與論文筆記' },
+      work: { name: '工作', bg: 'bg-blue-500', text: 'text-blue-700', border: 'border-blue-200', lightBg: 'bg-blue-50', gradient: 'from-blue-600 to-cyan-600', btnBg: 'bg-blue-600', icon: '💼', desc: '集中管理團隊會議、專案任務、產品交付與業務清單' },
+      personal: { name: '個人', bg: 'bg-emerald-500', text: 'text-emerald-700', border: 'border-emerald-200', lightBg: 'bg-emerald-50', gradient: 'from-emerald-600 to-teal-600', btnBg: 'bg-emerald-600', icon: '🟢', desc: '追蹤個人日常規劃、休閒活動、聚會與私人採買事項' },
+      important: { name: '重要', bg: 'bg-rose-500', text: 'text-rose-700', border: 'border-rose-200', lightBg: 'bg-rose-50', gradient: 'from-rose-600 to-red-600', btnBg: 'bg-rose-600', icon: '🔴', desc: '高優先級緊急事項、重要繳費與關鍵截止時間點' },
+      health: { name: '健康', bg: 'bg-amber-500', text: 'text-amber-700', border: 'border-amber-200', lightBg: 'bg-amber-50', gradient: 'from-amber-600 to-orange-500', btnBg: 'bg-amber-600', icon: '🟠', desc: '運動健身紀錄、看診預約、作息追蹤與健康保健事項' }
+    };
+
+    let currentDate = new Date();
+    let currentView = 'month'; // 'month' | 'week' | 'summary'
+    let selectedSummaryCategory = 'academic';
+    let selectedDateKey = getTodayDateKey();
+    let activeCategory = 'all';
+    let searchQuery = '';
+    let summaryFilterStatus = 'all';
+
+    const expandedTaskIds = new Set();
+
+    function saveEventsData() {
+      localStorage.setItem('grid_calendar_events', JSON.stringify(eventsData));
+    }
+
+    let eventsData = JSON.parse(localStorage.getItem('grid_calendar_events')) || generateSampleData();
+
+    function generateSampleData() {
+      const today = new Date();
+      const y = today.getFullYear();
+      const m = String(today.getMonth() + 1).padStart(2, '0');
+      const d = String(today.getDate()).padStart(2, '0');
+      
+      const todayKey = `${y}-${m}-${d}`;
+      
+      const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+      const tomorrowKey = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth()+1).padStart(2,'0')}-${String(tomorrow.getDate()).padStart(2,'0')}`;
+
+      const sample = {};
+      
+      sample[todayKey] = [
+        { id: '1', title: '團隊每週 Q3 專案同步會議', category: 'work', time: '10:00', completed: true, note: '線上 Google Meet 會議\n準備展示最新產品架構草案。' },
+        { id: '2', title: '微積分期中報告論文撰寫', category: 'academic', time: '14:30', completed: false, note: '完成第四章導數應用範例整理，附上數據圖表。' },
+        { id: '3', title: '健身房慢跑 30 分鐘', category: 'health', time: '19:00', completed: false, note: '有氧耐力訓練，記得補充水分。' }
+      ];
+      
+      sample[tomorrowKey] = [
+        { id: '4', title: '演算法作業 (三) 程式碼繳交', category: 'academic', time: '23:59', completed: false, note: '使用 Dynamic Programming 實現背包問題解答。' },
+        { id: '5', title: '撰寫 UI 設計規範文件', category: 'work', time: '15:00', completed: false, note: '整理 Figma 設計系統 Design Tokens 說明。' }
+      ];
+
+      return sample;
+    }
+
+    /* ==========================================================================
+       2. DOM 元素綁定
+       ========================================================================== */
+    const currentMonthDisplay = document.getElementById('current-month-display');
+    const calendarGrid = document.getElementById('calendar-grid');
+    const monthViewContainer = document.getElementById('month-view-container');
+    const weeklyViewContainer = document.getElementById('weekly-view-container');
+    const summaryViewContainer = document.getElementById('summary-view-container');
+
+    const viewMonthBtn = document.getElementById('view-month-btn');
+    const viewWeekBtn = document.getElementById('view-week-btn');
+    const viewSummaryBtn = document.getElementById('view-summary-btn');
+
+    const selectedDateBadge = document.getElementById('selected-date-badge');
+    const selectedDayName = document.getElementById('selected-day-name');
+    const selectedDayTaskList = document.getElementById('selected-day-task-list');
+
+    const weeklyDateRange = document.getElementById('weekly-date-range');
+    const weeklyDaysList = document.getElementById('weekly-days-list');
+    const expandAllWeekBtn = document.getElementById('expand-all-week-btn');
+    const collapseAllWeekBtn = document.getElementById('collapse-all-week-btn');
+
+    const summaryBanner = document.getElementById('summary-banner');
+    const summaryBannerIcon = document.getElementById('summary-banner-icon');
+    const summaryBannerTitle = document.getElementById('summary-banner-title');
+    const summaryBannerDesc = document.getElementById('summary-banner-desc');
+    const addCategoryTaskBtn = document.getElementById('add-category-task-btn');
+    const addCategoryTaskLabel = document.getElementById('add-category-task-label');
+
+    const summaryStatTotal = document.getElementById('summary-stat-total');
+    const summaryStatPending = document.getElementById('summary-stat-pending');
+    const summaryStatCompleted = document.getElementById('summary-stat-completed');
+    const summaryStatRate = document.getElementById('summary-stat-rate');
+    const summaryCountBadge = document.getElementById('summary-count-badge');
+    const summaryTasksList = document.getElementById('summary-tasks-list');
+
+    const eventModal = document.getElementById('event-modal');
+    const modalDateTitle = document.getElementById('modal-date-title');
+    const modalDateSubtitle = document.getElementById('modal-date-subtitle');
+    const closeModalBtn = document.getElementById('close-modal-btn');
+    const closeModalBottomBtn = document.getElementById('close-modal-bottom-btn');
+    const taskForm = document.getElementById('task-form');
+    const editingTaskId = document.getElementById('editing-task-id');
+    const taskTitleInput = document.getElementById('task-title-input');
+    const taskNoteInput = document.getElementById('task-note-input');
+    const taskCategorySelect = document.getElementById('task-category-select');
+    const taskTimeInput = document.getElementById('task-time-input');
+    const submitTaskBtn = document.getElementById('submit-task-btn');
+    const cancelEditBtn = document.getElementById('cancel-edit-btn');
+    const taskCountBadge = document.getElementById('task-count-badge');
+    const modalTaskList = document.getElementById('modal-task-list');
+
+    const categoryFilters = document.getElementById('category-filters');
+    const searchInput = document.getElementById('search-input');
+    const clearSearchBtn = document.getElementById('clear-search-btn');
+
+    const menuBtn = document.getElementById('menu-btn');
+    const menuDropdown = document.getElementById('menu-dropdown');
+    const exportBtn = document.getElementById('export-btn');
+    const importFile = document.getElementById('import-file');
+    const printBtn = document.getElementById('print-btn');
+
+    const prevMonthBtn = document.getElementById('prev-month-btn');
+    const nextMonthBtn = document.getElementById('next-month-btn');
+    const todayBtn = document.getElementById('today-btn');
+
+    /* ==========================================================================
+       3. 核心視圖渲染 (Render Main Views)
+       ========================================================================== */
+    function renderApp() {
+      monthViewContainer.classList.add('hidden');
+      weeklyViewContainer.classList.add('hidden');
+      summaryViewContainer.classList.add('hidden');
+
+      [viewMonthBtn, viewWeekBtn, viewSummaryBtn].forEach(btn => {
+        btn.className = 'px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900 transition-all font-semibold';
+      });
+
+      updateMobileNavUI();
+
+      if (currentView === 'month') {
+        monthViewContainer.classList.remove('hidden');
+        viewMonthBtn.className = 'px-3 py-1.5 rounded-lg bg-white text-indigo-600 shadow-xs transition-all font-bold';
+        renderCalendar();
+      } else if (currentView === 'week') {
+        weeklyViewContainer.classList.remove('hidden');
+        viewWeekBtn.className = 'px-3 py-1.5 rounded-lg bg-white text-indigo-600 shadow-xs transition-all font-bold';
+        renderWeeklyView();
+      } else if (currentView === 'summary') {
+        summaryViewContainer.classList.remove('hidden');
+        viewSummaryBtn.className = 'px-3 py-1.5 rounded-lg bg-white text-indigo-600 shadow-xs transition-all font-bold';
+        renderCategorySummary();
+      }
+    }
+
+    function updateMobileNavUI() {
+      const mMonth = document.getElementById('mobile-nav-month');
+      const mWeek = document.getElementById('mobile-nav-week');
+      const mSummary = document.getElementById('mobile-nav-summary');
+
+      [mMonth, mWeek, mSummary].forEach(b => b.className = 'flex flex-col items-center justify-center text-slate-400 font-semibold text-[10px] w-full ios-press-active');
+
+      if (currentView === 'month') mMonth.className = 'flex flex-col items-center justify-center text-indigo-600 font-bold text-[10px] w-full ios-press-active';
+      if (currentView === 'week') mWeek.className = 'flex flex-col items-center justify-center text-indigo-600 font-bold text-[10px] w-full ios-press-active';
+      if (currentView === 'summary') mSummary.className = 'flex flex-col items-center justify-center text-indigo-600 font-bold text-[10px] w-full ios-press-active';
+    }
+
+    /* iOS 緊湊月檢視渲染 (防止直立畫面跑版) */
+    function renderCalendar() {
+      calendarGrid.innerHTML = '';
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+
+      currentMonthDisplay.textContent = `${year} 年 ${month + 1} 月`;
+
+      const firstDay = new Date(year, month, 1).getDay();
+      const totalDays = new Date(year, month + 1, 0).getDate();
+      const prevMonthDays = new Date(year, month, 0).getDate();
+
+      const todayStr = getTodayDateKey();
+
+      // 上個月格子
+      for (let i = firstDay - 1; i >= 0; i--) {
+        const dayNum = prevMonthDays - i;
+        const cell = document.createElement('div');
+        cell.className = 'flex flex-col items-center justify-center py-2 text-slate-300 text-xs font-semibold select-none';
+        cell.innerHTML = `<span>${dayNum}</span><div class="h-1 mt-1"></div>`;
+        calendarGrid.appendChild(cell);
+      }
+
+      // 當月日期格子
+      for (let d = 1; d <= totalDays; d++) {
+        const dateKey = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const isToday = dateKey === todayStr;
+        const isSelected = dateKey === selectedDateKey;
+
+        let tasks = eventsData[dateKey] || [];
+
+        if (activeCategory !== 'all') {
+          tasks = tasks.filter(t => t.category === activeCategory);
+        }
+        if (searchQuery.trim() !== '') {
+          const q = searchQuery.toLowerCase();
+          tasks = tasks.filter(t => t.title.toLowerCase().includes(q) || (t.note && t.note.toLowerCase().includes(q)));
+        }
+
+        const cell = document.createElement('div');
+        cell.className = `ios-press-active flex flex-col items-center justify-center py-2 rounded-2xl cursor-pointer transition-all ${
+          isSelected ? 'bg-indigo-600 text-white shadow-xs font-bold' : (isToday ? 'bg-indigo-100 text-indigo-700 font-bold' : 'hover:bg-slate-100 text-slate-800 font-semibold')
+        }`;
+
+        // iOS 指示圓點 (Dots)
+        let dotsHTML = '<div class="flex items-center justify-center gap-0.5 mt-1 h-1.5">';
+        if (tasks.length > 0) {
+          tasks.slice(0, 3).forEach(task => {
+            const cat = CATEGORIES[task.category] || CATEGORIES.personal;
+            dotsHTML += `<span class="w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : cat.bg}"></span>`;
+          });
+        }
+        dotsHTML += '</div>';
+
+        cell.innerHTML = `
+          <span class="text-xs sm:text-sm leading-none">${d}</span>
+          ${dotsHTML}
+        `;
+
+        cell.addEventListener('click', () => {
+          selectedDateKey = dateKey;
+          renderCalendar();
+          renderSelectedDayAgenda(dateKey);
+        });
+
+        calendarGrid.appendChild(cell);
+      }
+
+      // 補齊下個月格子
+      const totalCells = calendarGrid.children.length;
+      const targetCells = totalCells > 35 ? 42 : 35;
+      const nextMonthDays = targetCells - totalCells;
+
+      for (let j = 1; j <= nextMonthDays; j++) {
+        const cell = document.createElement('div');
+        cell.className = 'flex flex-col items-center justify-center py-2 text-slate-300 text-xs font-semibold select-none';
+        cell.innerHTML = `<span>${j}</span><div class="h-1 mt-1"></div>`;
+        calendarGrid.appendChild(cell);
+      }
+
+      renderSelectedDayAgenda(selectedDateKey);
+    }
+
+    /* 渲染當日行程清單 (Agenda Panel) */
+    function renderSelectedDayAgenda(dateKey) {
+      const parts = dateKey.split('-');
+      const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+      const dayNames = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+
+      selectedDateBadge.textContent = dateKey;
+      selectedDayName.textContent = `${dayNames[d.getDay()]} 當日行程`;
+
+      const tasks = eventsData[dateKey] || [];
+      selectedDayTaskList.innerHTML = '';
+
+      if (tasks.length === 0) {
+        selectedDayTaskList.innerHTML = `
+          <div class="text-center py-6 text-slate-400 bg-slate-50/70 rounded-2xl border border-dashed border-slate-200">
+            <p class="text-xs font-semibold">當日尚無排定行程</p>
+            <p class="text-[10px] text-slate-400 mt-0.5">點擊右上角「＋ 新增事項」開始記錄</p>
+          </div>
+        `;
+        return;
+      }
+
+      tasks.forEach(task => {
+        const cat = CATEGORIES[task.category] || CATEGORIES.personal;
+        const div = document.createElement('div');
+        div.className = `p-3 bg-white rounded-2xl border ${cat.border} shadow-2xs flex items-center justify-between gap-2 hover:border-slate-300 transition-all`;
+
+        div.innerHTML = `
+          <div class="flex items-center gap-2.5 min-w-0 flex-1">
+            <input type="checkbox" ${task.completed ? 'checked' : ''} class="agenda-check w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer shrink-0">
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded-md ${cat.lightBg} ${cat.text} shrink-0">${cat.icon} ${cat.name}</span>
+            <div class="min-w-0 flex-1">
+              <p class="text-xs font-bold ${task.completed ? 'line-through text-slate-400' : 'text-slate-800'} truncate">${escapeHTML(task.title)}</p>
+              ${task.note ? `<p class="text-[10px] text-slate-400 truncate mt-0.5">${escapeHTML(task.note)}</p>` : ''}
+            </div>
+          </div>
+          <div class="flex items-center gap-1 shrink-0 text-xs">
+            ${task.time ? `<span class="text-[10px] text-slate-400 font-mono font-medium">${task.time}</span>` : ''}
+            <button class="agenda-edit-btn p-1 text-slate-400 hover:text-indigo-600">✏️</button>
+          </div>
+        `;
+
+        div.querySelector('.agenda-check').addEventListener('change', (e) => {
+          task.completed = e.target.checked;
+          saveEventsData();
+          renderCalendar();
+        });
+
+        div.querySelector('.agenda-edit-btn').addEventListener('click', () => {
+          openEventModal(dateKey);
+          setTimeout(() => {
+            editingTaskId.value = task.id;
+            taskTitleInput.value = task.title;
+            taskNoteInput.value = task.note || '';
+            taskCategorySelect.value = task.category;
+            taskTimeInput.value = task.time || '';
+            submitTaskBtn.querySelector('span').textContent = '儲存修改';
+            cancelEditBtn.classList.remove('hidden');
+          }, 50);
+        });
+
+        selectedDayTaskList.appendChild(div);
+      });
+    }
+
+    /* 渲染本週待辦事項總覽 */
+    function renderWeeklyView() {
+      weeklyDaysList.innerHTML = '';
+
+      const startOfWeek = new Date(currentDate);
+      startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
+
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 6);
+
+      weeklyDateRange.textContent = `${formatDateKey(startOfWeek)} ~ ${formatDateKey(endOfWeek)}`;
+      const dayNames = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(startOfWeek);
+        d.setDate(startOfWeek.getDate() + i);
+        const dateKey = formatDateKey(d);
+
+        let tasks = eventsData[dateKey] || [];
+
+        if (activeCategory !== 'all') tasks = tasks.filter(t => t.category === activeCategory);
+        if (searchQuery.trim() !== '') {
+          const q = searchQuery.toLowerCase();
+          tasks = tasks.filter(t => t.title.toLowerCase().includes(q) || (t.note && t.note.toLowerCase().includes(q)));
+        }
+
+        const isToday = dateKey === formatDateKey(new Date());
+
+        const daySection = document.createElement('div');
+        daySection.className = `border rounded-2xl p-3.5 ${isToday ? 'border-indigo-300 bg-indigo-50/20 shadow-2xs' : 'border-slate-200/80 bg-slate-50/50'}`;
+
+        let tasksHTML = '';
+        if (tasks.length === 0) {
+          tasksHTML = `<p class="text-xs text-slate-400 italic py-1">本日尚無排定行程</p>`;
+        } else {
+          tasks.forEach(task => {
+            const cat = CATEGORIES[task.category] || CATEGORIES.personal;
+            const isExpanded = expandedTaskIds.has(task.id);
+
+            tasksHTML += `
+              <div class="bg-white border ${cat.border} rounded-xl p-2.5 shadow-2xs space-y-1.5">
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2 min-w-0 flex-1">
+                    <input type="checkbox" ${task.completed ? 'checked' : ''} data-date="${dateKey}" data-id="${task.id}" class="week-task-check w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer">
+                    <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${cat.lightBg} ${cat.text} shrink-0">${cat.icon} ${cat.name}</span>
+                    <span class="text-xs font-bold ${task.completed ? 'line-through text-slate-400' : 'text-slate-800'} truncate">${escapeHTML(task.title)}</span>
+                  </div>
+                  <div class="flex items-center gap-1.5 shrink-0 text-xs">
+                    ${task.time ? `<span class="text-[10px] text-slate-500 font-mono">${task.time}</span>` : ''}
+                    <button class="week-expand-btn text-slate-400 p-1 ${isExpanded ? 'rotate-180' : ''}" data-id="${task.id}">
+                      ▼
+                    </button>
+                  </div>
+                </div>
+
+                ${task.note && task.note.trim() ? `
+                  <div class="text-xs text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100 whitespace-pre-wrap ${isExpanded ? '' : 'hidden'}">
+                    ${escapeHTML(task.note)}
+                  </div>
+                ` : ''}
+              </div>
+            `;
+          });
+        }
+
+        daySection.innerHTML = `
+          <div class="flex items-center justify-between mb-2.5 pb-1.5 border-b border-slate-200/60">
+            <div class="flex items-center gap-2">
+              <span class="text-xs sm:text-sm font-bold text-slate-900">${d.getMonth() + 1} 月 ${d.getDate()} 日</span>
+              <span class="text-xs font-semibold text-slate-500">${dayNames[i]}</span>
+              ${isToday ? `<span class="text-[9px] font-bold px-1.5 py-0.5 bg-indigo-600 text-white rounded-full">Today</span>` : ''}
+            </div>
+            <button class="add-day-task-btn text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-white border border-indigo-200 px-2 py-0.5 rounded-lg" data-date="${dateKey}">
+              ＋ 新增
+            </button>
+          </div>
+          <div class="space-y-2">
+            ${tasksHTML}
+          </div>
+        `;
+
+        weeklyDaysList.appendChild(daySection);
+      }
+
+      weeklyDaysList.querySelectorAll('.week-task-check').forEach(chk => {
+        chk.addEventListener('change', (e) => {
+          const dKey = e.target.dataset.date;
+          const tId = e.target.dataset.id;
+          const target = (eventsData[dKey] || []).find(t => t.id === tId);
+          if (target) {
+            target.completed = e.target.checked;
+            saveEventsData();
+            renderWeeklyView();
+            showToast(target.completed ? '已完成事項' : '標記為未完成');
+          }
+        });
+      });
+
+      weeklyDaysList.querySelectorAll('.week-expand-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const id = e.currentTarget.dataset.id;
+          if (expandedTaskIds.has(id)) expandedTaskIds.delete(id);
+          else expandedTaskIds.add(id);
+          renderWeeklyView();
+        });
+      });
+
+      weeklyDaysList.querySelectorAll('.add-day-task-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          openEventModal(e.currentTarget.dataset.date);
+        });
+      });
+    }
+
+    /* 渲染標籤獨立統整專區 */
+    function renderCategorySummary() {
+      summaryTasksList.innerHTML = '';
+      const catInfo = CATEGORIES[selectedSummaryCategory] || CATEGORIES.academic;
+
+      document.querySelectorAll('.summary-tab-btn').forEach(btn => {
+        const cat = btn.dataset.cat;
+        if (cat === selectedSummaryCategory) {
+          btn.className = `summary-tab-btn active px-3.5 py-2 rounded-xl ${catInfo.btnBg} text-white shadow-xs transition-all whitespace-nowrap`;
+        } else {
+          btn.className = `summary-tab-btn px-3.5 py-2 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all whitespace-nowrap`;
+        }
+      });
+
+      summaryBanner.className = `bg-gradient-to-r ${catInfo.gradient} rounded-2xl p-5 text-white shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3`;
+      summaryBannerIcon.textContent = catInfo.icon;
+      summaryBannerTitle.textContent = `${catInfo.name}專區與進度統整`;
+      summaryBannerDesc.textContent = catInfo.desc;
+      addCategoryTaskLabel.textContent = `新增${catInfo.name}事項`;
+
+      const matchedTasks = [];
+      Object.keys(eventsData).forEach(dateKey => {
+        eventsData[dateKey].forEach(task => {
+          if (task.category === selectedSummaryCategory) {
+            matchedTasks.push({ ...task, dateKey });
+          }
+        });
+      });
+
+      matchedTasks.sort((a, b) => a.dateKey.localeCompare(b.dateKey) || (a.time || '').localeCompare(b.time || ''));
+
+      const totalCount = matchedTasks.length;
+      const completedCount = matchedTasks.filter(t => t.completed).length;
+      const pendingCount = totalCount - completedCount;
+      const rate = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+
+      summaryStatTotal.textContent = totalCount;
+      summaryStatPending.textContent = pendingCount;
+      summaryStatCompleted.textContent = completedCount;
+      summaryStatRate.textContent = `${rate}%`;
+      summaryCountBadge.textContent = `${totalCount} 項`;
+
+      const displayTasks = matchedTasks.filter(t => {
+        if (summaryFilterStatus === 'pending') return !t.completed;
+        if (summaryFilterStatus === 'completed') return t.completed;
+        return true;
+      });
+
+      if (displayTasks.length === 0) {
+        summaryTasksList.innerHTML = `
+          <div class="text-center py-10 text-slate-400 bg-slate-50/70 rounded-2xl border border-dashed border-slate-200">
+            <span class="text-2xl block mb-1">${catInfo.icon}</span>
+            <p class="text-xs font-semibold">目前無「${catInfo.name}」事項</p>
+          </div>
+        `;
+        return;
+      }
+
+      displayTasks.forEach(task => {
+        const isExpanded = expandedTaskIds.has(task.id);
+
+        const card = document.createElement('div');
+        card.className = `border rounded-2xl bg-white transition-all overflow-hidden ${
+          task.completed ? 'border-slate-200 opacity-60' : `${catInfo.border} shadow-2xs`
+        }`;
+
+        card.innerHTML = `
+          <div class="task-summary-row p-3 flex items-center justify-between gap-2.5 cursor-pointer hover:bg-slate-50">
+            <div class="flex items-center gap-2.5 min-w-0 flex-1">
+              <input type="checkbox" ${task.completed ? 'checked' : ''} class="task-check-toggle w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer shrink-0">
+              
+              <div class="flex flex-col sm:flex-row sm:items-center gap-0.5 sm:gap-2 min-w-0 flex-1">
+                <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md ${catInfo.lightBg} ${catInfo.text} shrink-0">
+                  📅 ${task.dateKey} ${task.time ? `(${task.time})` : ''}
+                </span>
+                <span class="text-xs font-bold ${task.completed ? 'line-through text-slate-400' : 'text-slate-800'} truncate">
+                  ${escapeHTML(task.title)}
+                </span>
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2 shrink-0">
+              <button class="expand-toggle-btn text-slate-400 p-1 ${isExpanded ? 'rotate-180' : ''}">▼</button>
+            </div>
+          </div>
+
+          <div class="task-detail-panel border-t border-slate-100 bg-slate-50/50 p-3 space-y-2 ${isExpanded ? '' : 'hidden'}">
+            <div class="text-xs text-slate-700 bg-white p-2.5 rounded-xl border border-slate-200/80 whitespace-pre-wrap leading-relaxed">
+              ${task.note && task.note.trim() ? escapeHTML(task.note) : '<span class="text-slate-400 italic">尚無備註。</span>'}
+            </div>
+
+            <div class="flex items-center justify-end gap-2 text-xs pt-1">
+              <button class="edit-task-btn px-2.5 py-1 font-semibold text-slate-700 bg-slate-100 rounded-lg">編輯</button>
+              <button class="delete-task-btn px-2.5 py-1 font-semibold text-rose-600 bg-rose-50 rounded-lg">刪除</button>
+            </div>
+          </div>
+        `;
+
+        card.querySelector('.task-check-toggle').addEventListener('click', (e) => {
+          e.stopPropagation();
+          task.completed = e.target.checked;
+          saveEventsData();
+          renderCategorySummary();
+        });
+
+        card.querySelector('.task-summary-row').addEventListener('click', (e) => {
+          if (e.target.tagName === 'INPUT') return;
+          if (expandedTaskIds.has(task.id)) expandedTaskIds.delete(task.id);
+          else expandedTaskIds.add(task.id);
+          renderCategorySummary();
+        });
+
+        card.querySelector('.edit-task-btn').addEventListener('click', () => {
+          openEventModal(task.dateKey);
+          setTimeout(() => {
+            taskTitleInput.value = task.title;
+            taskNoteInput.value = task.note || '';
+            taskCategorySelect.value = task.category;
+            taskTimeInput.value = task.time || '';
+            editingTaskId.value = task.id;
+            submitTaskBtn.querySelector('span').textContent = '儲存修改';
+            cancelEditBtn.classList.remove('hidden');
+          }, 50);
+        });
+
+        card.querySelector('.delete-task-btn').addEventListener('click', () => {
+          showConfirmDialog(`確定要刪除這項事項嗎？`, () => {
+            eventsData[task.dateKey] = eventsData[task.dateKey].filter(t => t.id !== task.id);
+            if (eventsData[task.dateKey].length === 0) delete eventsData[task.dateKey];
+            saveEventsData();
+            renderCategorySummary();
+            showToast(`已刪除事項`);
+          });
+        });
+
+        summaryTasksList.appendChild(card);
+      });
+    }
+
+    /* ==========================================================================
+       4. Modal 彈窗與表單 (Modal Logic)
+       ========================================================================== */
+    function openEventModal(dateKey, defaultCategory = 'academic') {
+      selectedDateKey = dateKey;
+      const parts = dateKey.split('-');
+      const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+      const dayNames = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+
+      modalDateTitle.textContent = `${parts[0]} 年 ${parseInt(parts[1])} 月 ${parseInt(parts[2])} 日`;
+      modalDateSubtitle.textContent = dayNames[d.getDay()];
+
+      resetTaskForm();
+      taskCategorySelect.value = defaultCategory;
+      renderModalTaskList();
+
+      eventModal.classList.remove('hidden');
+      requestAnimationFrame(() => {
+        eventModal.classList.remove('opacity-0');
+        eventModal.querySelector('div').classList.remove('translate-y-full', 'scale-95');
+      });
+    }
+
+    function closeEventModal() {
+      eventModal.classList.add('opacity-0');
+      eventModal.querySelector('div').classList.add('translate-y-full', 'scale-95');
+      setTimeout(() => {
+        eventModal.classList.add('hidden');
+      }, 200);
+    }
+
+    function resetTaskForm() {
+      editingTaskId.value = '';
+      taskTitleInput.value = '';
+      taskNoteInput.value = '';
+      taskTimeInput.value = '';
+      submitTaskBtn.querySelector('span').textContent = '新增至清單';
+      cancelEditBtn.classList.add('hidden');
+    }
+
+    function renderModalTaskList() {
+      modalTaskList.innerHTML = '';
+      const tasks = eventsData[selectedDateKey] || [];
+      taskCountBadge.textContent = `${tasks.length} 項`;
+
+      if (tasks.length === 0) {
+        modalTaskList.innerHTML = `<li class="text-xs text-slate-400 italic text-center py-3 bg-slate-50 rounded-xl">當日尚無行程</li>`;
+        return;
+      }
+
+      tasks.forEach(task => {
+        const cat = CATEGORIES[task.category] || CATEGORIES.personal;
+        const li = document.createElement('li');
+        li.className = 'flex items-center justify-between p-2.5 bg-white rounded-xl border border-slate-200/80 gap-2';
+
+        li.innerHTML = `
+          <div class="flex items-center gap-2 min-w-0 flex-1">
+            <input type="checkbox" ${task.completed ? 'checked' : ''} class="modal-task-check w-4 h-4 text-indigo-600 rounded border-slate-300 cursor-pointer shrink-0">
+            <span class="text-[10px] font-semibold px-1.5 py-0.5 rounded ${cat.lightBg} ${cat.text} shrink-0">${cat.icon} ${cat.name}</span>
+            <span class="text-xs font-bold ${task.completed ? 'line-through text-slate-400' : 'text-slate-800'} truncate">${escapeHTML(task.title)}</span>
+          </div>
+          <div class="flex items-center gap-1 shrink-0 text-xs">
+            <button class="modal-edit-btn text-slate-400 hover:text-indigo-600 p-1">✏️</button>
+            <button class="modal-delete-btn text-rose-500 hover:text-rose-700 p-1">🗑️</button>
+          </div>
+        `;
+
+        li.querySelector('.modal-task-check').addEventListener('change', (e) => {
+          task.completed = e.target.checked;
+          saveEventsData();
+          renderModalTaskList();
+          renderApp();
+        });
+
+        li.querySelector('.modal-edit-btn').addEventListener('click', () => {
+          editingTaskId.value = task.id;
+          taskTitleInput.value = task.title;
+          taskNoteInput.value = task.note || '';
+          taskCategorySelect.value = task.category;
+          taskTimeInput.value = task.time || '';
+          submitTaskBtn.querySelector('span').textContent = '儲存修改';
+          cancelEditBtn.classList.remove('hidden');
+        });
+
+        li.querySelector('.modal-delete-btn').addEventListener('click', () => {
+          showConfirmDialog('確定要刪除這項行程嗎？', () => {
+            eventsData[selectedDateKey] = eventsData[selectedDateKey].filter(t => t.id !== task.id);
+            if (eventsData[selectedDateKey].length === 0) delete eventsData[selectedDateKey];
+            saveEventsData();
+            renderModalTaskList();
+            renderApp();
+            showToast('已刪除事項');
+          });
+        });
+
+        modalTaskList.appendChild(li);
+      });
+    }
+
+    taskForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const title = taskTitleInput.value.trim();
+      const note = taskNoteInput.value.trim();
+      const category = taskCategorySelect.value;
+      const time = taskTimeInput.value;
+      const editId = editingTaskId.value;
+
+      if (!title) return;
+      if (!eventsData[selectedDateKey]) eventsData[selectedDateKey] = [];
+
+      if (editId) {
+        const task = eventsData[selectedDateKey].find(t => t.id === editId);
+        if (task) {
+          task.title = title;
+          task.note = note;
+          task.category = category;
+          task.time = time;
+        }
+        showToast('修改已儲存');
+      } else {
+        const newTask = {
+          id: Date.now().toString(),
+          title,
+          note,
+          category,
+          time,
+          completed: false
+        };
+        eventsData[selectedDateKey].push(newTask);
+        showToast('已成功新增至當日清單');
+      }
+
+      saveEventsData();
+      resetTaskForm();
+      renderModalTaskList();
+      renderApp();
+    });
+
+    cancelEditBtn.addEventListener('click', resetTaskForm);
+    closeModalBtn.addEventListener('click', closeEventModal);
+    closeModalBottomBtn.addEventListener('click', closeEventModal);
+
+    /* ==========================================================================
+       5. 通用工具函式 (Helpers)
+       ========================================================================== */
+    function formatDateKey(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    function getTodayDateKey() {
+      return formatDateKey(new Date());
+    }
+
+    function escapeHTML(str) {
+      if (!str) return '';
+      return str.replace(/[&<>'"]/g, 
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+      );
+    }
+
+    function showToast(message) {
+      const toastContainer = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = 'bg-slate-900/90 backdrop-blur-md text-white text-xs font-semibold px-4 py-2.5 rounded-full shadow-lg flex items-center gap-1.5 transform translate-y-2 opacity-0 transition-all duration-300 pointer-events-auto';
+      toast.innerHTML = `<span>✨ ${escapeHTML(message)}</span>`;
+      toastContainer.appendChild(toast);
+
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      });
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 2200);
+    }
+
+    function showConfirmDialog(msg, onConfirm) {
+      const dialog = document.getElementById('confirm-dialog');
+      const dialogMsg = document.getElementById('confirm-dialog-msg');
+      const cancelBtn = document.getElementById('confirm-cancel-btn');
+      const okBtn = document.getElementById('confirm-ok-btn');
+
+      dialogMsg.textContent = msg;
+      dialog.classList.remove('hidden');
+
+      const cleanup = () => {
+        dialog.classList.add('hidden');
+        cancelBtn.removeEventListener('click', handleCancel);
+        okBtn.removeEventListener('click', handleOk);
+      };
+
+      const handleCancel = () => cleanup();
+      const handleOk = () => {
+        cleanup();
+        if (onConfirm) onConfirm();
+      };
+
+      cancelBtn.addEventListener('click', handleCancel);
+      okBtn.addEventListener('click', handleOk);
+    }
+
+    /* ==========================================================================
+       6. 按鈕與事件監聽 (Events)
+       ========================================================================== */
+    viewMonthBtn.addEventListener('click', () => { currentView = 'month'; renderApp(); });
+    viewWeekBtn.addEventListener('click', () => { currentView = 'week'; renderApp(); });
+    viewSummaryBtn.addEventListener('click', () => { currentView = 'summary'; renderApp(); });
+
+    document.getElementById('mobile-nav-month').addEventListener('click', () => { currentView = 'month'; renderApp(); });
+    document.getElementById('mobile-nav-week').addEventListener('click', () => { currentView = 'week'; renderApp(); });
+    document.getElementById('mobile-nav-summary').addEventListener('click', () => { currentView = 'summary'; renderApp(); });
+    document.getElementById('mobile-nav-add').addEventListener('click', () => { openEventModal(selectedDateKey); });
+
+    document.getElementById('add-selected-day-task-btn').addEventListener('click', () => { openEventModal(selectedDateKey); });
+    document.getElementById('current-month-display-btn').addEventListener('click', () => { currentDate = new Date(); selectedDateKey = getTodayDateKey(); renderApp(); });
+
+    document.getElementById('summary-category-tabs').addEventListener('click', (e) => {
+      const tab = e.target.closest('.summary-tab-btn');
+      if (!tab) return;
+      selectedSummaryCategory = tab.dataset.cat;
+      renderCategorySummary();
+    });
+
+    addCategoryTaskBtn.addEventListener('click', () => {
+      openEventModal(getTodayDateKey(), selectedSummaryCategory);
+    });
+
+    document.querySelectorAll('.summary-filter-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        document.querySelectorAll('.summary-filter-btn').forEach(b => {
+          b.className = 'summary-filter-btn px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600';
+        });
+        e.target.className = 'summary-filter-btn px-2.5 py-1 rounded-lg bg-slate-900 text-white';
+        summaryFilterStatus = e.target.dataset.summaryFilter;
+        renderCategorySummary();
+      });
+    });
+
+    categoryFilters.addEventListener('click', (e) => {
+      const chip = e.target.closest('.filter-chip');
+      if (!chip) return;
+
+      document.querySelectorAll('.filter-chip').forEach(c => {
+        c.className = 'filter-chip px-3 py-1.5 rounded-full bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 transition-all flex items-center gap-1 whitespace-nowrap shrink-0';
+      });
+
+      chip.className = 'filter-chip active px-3 py-1.5 rounded-full bg-slate-900 text-white shadow-xs transition-all flex items-center gap-1 whitespace-nowrap shrink-0';
+      activeCategory = chip.dataset.category;
+      renderApp();
+    });
+
+    searchInput.addEventListener('input', (e) => {
+      searchQuery = e.target.value;
+      if (searchQuery.length > 0) clearSearchBtn.classList.remove('hidden');
+      else clearSearchBtn.classList.add('hidden');
+      renderApp();
+    });
+
+    clearSearchBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      searchQuery = '';
+      clearSearchBtn.classList.add('hidden');
+      renderApp();
+    });
+
+    prevMonthBtn.addEventListener('click', () => {
+      if (currentView === 'week') currentDate.setDate(currentDate.getDate() - 7);
+      else currentDate.setMonth(currentDate.getMonth() - 1);
+      renderApp();
+    });
+
+    nextMonthBtn.addEventListener('click', () => {
+      if (currentView === 'week') currentDate.setDate(currentDate.getDate() + 7);
+      else currentDate.setMonth(currentDate.getMonth() + 1);
+      renderApp();
+    });
+
+    todayBtn.addEventListener('click', () => {
+      currentDate = new Date();
+      selectedDateKey = getTodayDateKey();
+      renderApp();
+    });
+
+    menuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menuDropdown.classList.toggle('hidden');
+    });
+
+    document.addEventListener('click', () => {
+      menuDropdown.classList.add('hidden');
+    });
+
+    exportBtn.addEventListener('click', () => {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(eventsData, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `ios_calendar_backup_${getTodayDateKey()}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      showToast('已匯出行事曆資料');
+    });
+
+    importFile.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          const imported = JSON.parse(evt.target.result);
+          if (typeof imported === 'object' && imported !== null) {
+            eventsData = imported;
+            saveEventsData();
+            renderApp();
+            showToast('已成功匯入備份');
+          } else {
+            showToast('匯入格式錯誤');
+          }
+        } catch (err) {
+          showToast('JSON 解析失敗');
+        }
+      };
+      reader.readAsText(file);
+    });
+
+    printBtn.addEventListener('click', () => {
+      window.print();
+    });
+
+    expandAllWeekBtn.addEventListener('click', () => {
+      Object.keys(eventsData).forEach(dateKey => {
+        eventsData[dateKey].forEach(t => expandedTaskIds.add(t.id));
+      });
+      renderWeeklyView();
+    });
+
+    collapseAllWeekBtn.addEventListener('click', () => {
+      expandedTaskIds.clear();
+      renderWeeklyView();
+    });
+
+    window.onload = function() {
+      renderApp();
+    };
+  </script>
+</body>
+</html>
